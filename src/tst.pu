@@ -1,0 +1,42 @@
+@startuml
+start
+group get_command_matches
+   :matchesを取得;
+end group
+
+group get_pattern
+    if (パターンは入力されているか) then (yes)
+        else (no)
+        end
+    endif
+end group
+
+group get_file_vector
+if(ファイル名は引数から入力されているか) then (yes)
+    if(ファイル名はディレクトリか？)then(directory)
+        :Vec<File>;
+    else(file) 
+        :File;
+    endif
+else(No)
+    if(ファイル名はパイプから入力されているか))then(no)
+       end
+    else
+      :Vec<File>;  
+    endif
+endif
+   :Vec<File>;
+end group
+
+switch(matches)
+   case(read_file)
+      :Fileの時は必ず有効 Vec<File>用;
+   case(match_case)
+      :大文字小文字を区別する;
+   case(no_number)
+      :ファイルの時のみ有効,見つけた物の行数を入れない;
+   case(read_file or match_case or no_number)
+      :複数の処理の組み合わせ;
+endswitch
+end
+@enduml
