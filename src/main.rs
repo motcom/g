@@ -1,55 +1,31 @@
 use atty;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use regex::Regex;
-use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
-
-const DEBUG: bool = true;
-
-fn debug() {
-   get_file_vector();
-}
-
-fn get_file_vector() {
-   let _file_vector: Vec<File> = Vec::new();
-
-   // パイプ入力の場合はTrue
-   if atty::isnt(atty::Stream::Stdin) {
-      // パイプ入力
-      println!("not atty");
-   } else {
-      // ファイル入力
-      println!("is atty");
-   }
-}
+use std::io::{BufRead, BufReader};
 
 /// 自分用grep
-fn main() {
-   if DEBUG {
-      debug()
-   } else {
-      match main_exe() {
-         Ok(_) => {}
-         Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
-         }
-      }
-   }
-}
-
-/// メイン処理
-/// common
-///
-/// # Returns
-/// 正常終了
-fn main_exe() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
    let matches = get_command_matches();
    let pattern = get_pattern(&matches);
-
+   branch_atty(&matches, &pattern)?;
    Ok(())
 }
+
+/// -------------------------------Utility--------------------------------
+/// ファイルパスを取得する
+/// common
+///
+/// # Arguments
+/// * `matches` - コマンドライン引数
+///
+/// # Returns
+/// ファイルパス
+fn get_file_path(matches: &ArgMatches) -> Option<&String> {
+   let file_path = matches.get_one::<String>("file");
+   file_path
+}
+/// -------------------------------Utility--------------------------------
 
 /// コマンドライン引数を取得する
 /// common
@@ -65,7 +41,7 @@ fn get_command_matches() -> ArgMatches {
          Arg::new("no_number")
             .help("行ナンバーを表示しない")
             .short('n')
-            .long("nonumber")
+            .long("no_number")
             .action(ArgAction::SetTrue),
       )
       .arg(
@@ -98,7 +74,15 @@ fn get_command_matches() -> ArgMatches {
 fn get_pattern(matches: &ArgMatches) -> Regex {
    match matches.get_one::<String>("pattern") {
       Some(p) => {
-         if let Ok(pattern) = Regex::new(p) {
+         // ignore case ?
+         let pattern;
+         if matches.get_flag("match_case") {
+            pattern = p.to_string();
+         } else {
+            pattern = format!("(?i){}", p);
+         }
+
+         if let Ok(pattern) = Regex::new(&pattern) {
             pattern
          } else {
             println!("Error: 正規表現を作成できませんでしたパターンを見直してください");
@@ -108,6 +92,138 @@ fn get_pattern(matches: &ArgMatches) -> Regex {
       None => {
          println!("Error: パターンが指定されていません");
          std::process::exit(2);
+      }
+   }
+}
+
+/// パイプかファイルかを判定する
+/// # Arguments
+/// * `matches` - コマンドライン引数
+///
+/// # Returns
+/// パイプの場合はその内容をVec<String>で返す
+/// ファイルの場合はファイルを開きその内容をVec<String>で返す
+/// `Result<Vec<String>, std::io::Error>`
+fn branch_atty(
+   matches: &ArgMatches,
+   pattern: &Regex,
+) -> Result<(), Box<dyn std::error::Error>> {
+   // パイプ入力の場合はTrue
+   if atty::isnt(atty::Stream::Stdin) {
+      input_pipe_pattern(&matches, &pattern)?;
+   } else {
+      input_file_pattern(&matches, &pattern)?;
+   }
+   Ok(())
+}
+
+///　ファイルで入力するパターン
+/// # Arguments
+/// * `matches` - コマンドライン引数
+/// * `pattern` - パターン
+fn input_file_pattern(
+   matches: &ArgMatches,
+   pattern: &Regex,
+) -> Result<(), Box<dyn std::error::Error>> {
+   // ファイル入力
+   let file_path = get_file_path(matches);
+   // パイプ入力されていない場合はファイルパスがないとエラーになる
+   match file_path {
+      Some(file_path) => {
+         let file = File::open(file_path);
+         match file {
+            Ok(file) => {
+               let reader = BufReader::new(file);
+               let lines_tmp = reader
+                  .lines()
+                  .collect::<Result<Vec<String>, _>>()?;
+               print_display(&matches, &pattern, &lines_tmp);
+            }
+            Err(_e) => {}
+         }
+      }
+      None => {
+         println!("Error: ファイルパスが指定されていません");
+      }
+   }
+   Ok(())
+}
+
+/// パイプで入力するパターン
+/// # Arguments
+/// * `matches` - コマンドライン引数
+/// * `pattern` - パターン
+fn input_pipe_pattern(
+   matches: &ArgMatches,
+   pattern: &Regex,
+) -> Result<(), Box<dyn std::error::Error>> {
+   // パイプ入力
+   let stdin = std::io::stdin();
+   let bufer = stdin.lock();
+   let lines_tmp =
+      bufer.lines().collect::<Result<Vec<String>, _>>()?;
+
+   // パイプ入力でファイルをリードする場合
+   if matches.get_flag("read_file") {
+      for line in &lines_tmp {
+         // ファイルネームを出力
+         println!("\n\nfile name:{}", line);
+         let file = File::open(line);
+         match file {
+            Ok(file) => {
+               let reader = BufReader::new(file);
+               let lines_tmp =
+                  reader
+                     .lines()
+                     .collect::<Result<Vec<String>, _>>();
+
+               match lines_tmp {
+                  Ok(lines_tmp) => {
+                     print_display(
+                        &matches, &pattern, &lines_tmp,
+                     );
+                  }
+                  Err(_e) => {}
+               }
+            }
+            Err(_e) => {}
+         }
+      }
+   } else {
+      print_display(&matches, &pattern, &lines_tmp);
+   }
+
+   Ok(())
+}
+
+/// 画面に出力する
+/// # Arguments
+/// * `matches` - コマンドライン引数
+/// * `pattern` - パターン
+/// * `str_vec` - ファイルの内容
+///   
+/// # Returns
+/// パターンにマッチした行を表示する
+fn print_display(
+   matches: &ArgMatches,
+   pattern: &Regex,
+   str_vec: &Vec<String>,
+) {
+   // no_number かどうか
+   if matches.get_flag("no_number") {
+      for str in str_vec {
+         if pattern.is_match(str) {
+            println!("{}", str);
+         }
+      }
+   } else {
+      let mut index = 1;
+      // ouput
+      for str in str_vec {
+         if pattern.is_match(str) {
+            println!("{}: {}", index, str);
+         }
+         index += 1;
       }
    }
 }
