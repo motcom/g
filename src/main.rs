@@ -3,6 +3,7 @@ use clap::{Arg, ArgAction, ArgMatches, Command};
 use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use ansi_term::Colour;
 
 /// 自分用grep
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,7 +26,9 @@ fn get_file_path(matches: &ArgMatches) -> Option<&String> {
    let file_path = matches.get_one::<String>("file");
    file_path
 }
+
 /// -------------------------------Utility--------------------------------
+
 
 /// コマンドライン引数を取得する
 /// common
@@ -38,10 +41,10 @@ fn get_command_matches() -> ArgMatches {
       .arg(Arg::new("pattern").required(true).index(1))
       .arg(Arg::new("file").required(false).index(2))
       .arg(
-         Arg::new("no_number")
-            .help("行ナンバーを表示しない")
+         Arg::new("number")
+            .help("行ナンバーを表示する")
             .short('n')
-            .long("no_number")
+            .long("number")
             .action(ArgAction::SetTrue),
       )
       .arg(
@@ -49,14 +52,14 @@ fn get_command_matches() -> ArgMatches {
             .help(
                "複数のファイルパスを渡した時中身まで読むか？",
             )
-            .short('r')
-            .long("read")
+            .short('o')
+            .long("open")
             .action(ArgAction::SetTrue),
       )
       .arg(
          Arg::new("match_case")
             .help("大文字小文字を区別するか？")
-            .short('i')
+            .short('m')
             .long("match")
             .action(ArgAction::SetTrue),
       )
@@ -209,21 +212,28 @@ fn print_display(
    pattern: &Regex,
    str_vec: &Vec<String>,
 ) {
-   // no_number かどうか
-   if matches.get_flag("no_number") {
-      for str in str_vec {
-         if pattern.is_match(str) {
-            println!("{}", str);
-         }
-      }
-   } else {
+   // number かどうか
+   if matches.get_flag("number") {
       let mut index = 1;
       // ouput
       for str in str_vec {
          if pattern.is_match(str) {
-            println!("{}: {}", index, str);
+            let rep = if let Some(s) = pattern.find(str){s}else{continue};
+            let rep = rep.as_str();
+            let red_str = Colour::Red.paint(rep).to_string();
+            println!("{}: {}", index, &red_str);
          }
          index += 1;
+      }
+   
+   } else {
+      for str in str_vec {
+        if pattern.is_match(str) {
+            let rep = if let Some(s) = pattern.find(str){s}else{continue};
+            let rep = rep.as_str();
+            let red_str = Colour::Red.paint(rep).to_string();
+            println!("{}", str.replace(rep,&red_str));
+         }
       }
    }
 }
