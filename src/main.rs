@@ -7,12 +7,11 @@ use ansi_term::Colour;
 
 /// 自分用grep
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-   let matches = get_command_matches();
-   let pattern = get_pattern(&matches);
-   branch_atty(&matches, &pattern)?;
-   Ok(())
+    let matches = get_command_matches();
+    let pattern = get_pattern(&matches);
+    branch_atty(&matches, &pattern)?;
+    Ok(())
 }
-
 /// -------------------------------Utility--------------------------------
 /// ファイルパスを取得する
 /// common
@@ -23,8 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # Returns
 /// ファイルパス
 fn get_file_path(matches: &ArgMatches) -> Option<&String> {
-   let file_path = matches.get_one::<String>("file");
-   file_path
+    let file_path = matches.get_one::<String>("file");
+    file_path
 }
 
 /// -------------------------------Utility--------------------------------
@@ -75,28 +74,28 @@ fn get_command_matches() -> ArgMatches {
 /// # Returns
 /// パターン
 fn get_pattern(matches: &ArgMatches) -> Regex {
-   match matches.get_one::<String>("pattern") {
-      Some(p) => {
-         // ignore case ?
-         let pattern;
-         if matches.get_flag("match_case") {
-            pattern = p.to_string();
-         } else {
-            pattern = format!("(?i){}", p);
-         }
+    match matches.get_one::<String>("pattern") {
+        Some(p) => {
+            // ignore case ?
+            let pattern;
+            if matches.get_flag("match_case") {
+                pattern = p.to_string();
+            } else {
+                pattern = format!("(?i){}", p);
+            }
 
-         if let Ok(pattern) = Regex::new(&pattern) {
-            pattern
-         } else {
-            println!("Error: 正規表現を作成できませんでしたパターンを見直してください");
+            if let Ok(pattern) = Regex::new(&pattern) {
+                pattern
+            } else {
+                println!("Error: 正規表現を作成できませんでしたパターンを見直してください");
+                std::process::exit(2);
+            }
+        }
+        None => {
+            println!("Error: パターンが指定されていません");
             std::process::exit(2);
-         }
-      }
-      None => {
-         println!("Error: パターンが指定されていません");
-         std::process::exit(2);
-      }
-   }
+        }
+    }
 }
 
 /// パイプかファイルかを判定する
@@ -107,17 +106,14 @@ fn get_pattern(matches: &ArgMatches) -> Regex {
 /// パイプの場合はその内容をVec<String>で返す
 /// ファイルの場合はファイルを開きその内容をVec<String>で返す
 /// `Result<Vec<String>, std::io::Error>`
-fn branch_atty(
-   matches: &ArgMatches,
-   pattern: &Regex,
-) -> Result<(), Box<dyn std::error::Error>> {
-   // パイプ入力の場合はTrue
-   if atty::isnt(atty::Stream::Stdin) {
-      input_pipe_pattern(&matches, &pattern)?;
-   } else {
-      input_file_pattern(&matches, &pattern)?;
-   }
-   Ok(())
+fn branch_atty(matches: &ArgMatches, pattern: &Regex) -> Result<(), Box<dyn std::error::Error>> {
+    // パイプ入力の場合はTrue
+    if atty::isnt(atty::Stream::Stdin) {
+        input_pipe_pattern(&matches, &pattern)?;
+    } else {
+        input_file_pattern(&matches, &pattern)?;
+    }
+    Ok(())
 }
 
 ///　ファイルで入力するパターン
@@ -125,31 +121,29 @@ fn branch_atty(
 /// * `matches` - コマンドライン引数
 /// * `pattern` - パターン
 fn input_file_pattern(
-   matches: &ArgMatches,
-   pattern: &Regex,
+    matches: &ArgMatches,
+    pattern: &Regex,
 ) -> Result<(), Box<dyn std::error::Error>> {
-   // ファイル入力
-   let file_path = get_file_path(matches);
-   // パイプ入力されていない場合はファイルパスがないとエラーになる
-   match file_path {
-      Some(file_path) => {
-         let file = File::open(file_path);
-         match file {
-            Ok(file) => {
-               let reader = BufReader::new(file);
-               let lines_tmp = reader
-                  .lines()
-                  .collect::<Result<Vec<String>, _>>()?;
-               print_display(&matches, &pattern, &lines_tmp);
+    // ファイル入力
+    let file_path = get_file_path(matches);
+    // パイプ入力されていない場合はファイルパスがないとエラーになる
+    match file_path {
+        Some(file_path) => {
+            let file = File::open(file_path);
+            match file {
+                Ok(file) => {
+                    let reader = BufReader::new(file);
+                    let lines_tmp = reader.lines().collect::<Result<Vec<String>, _>>()?;
+                    print_display(&matches, &pattern, &lines_tmp);
+                }
+                Err(_e) => {}
             }
-            Err(_e) => {}
-         }
-      }
-      None => {
-         println!("Error: ファイルパスが指定されていません");
-      }
-   }
-   Ok(())
+        }
+        None => {
+            println!("Error: ファイルパスが指定されていません");
+        }
+    }
+    Ok(())
 }
 
 /// パイプで入力するパターン
@@ -157,46 +151,40 @@ fn input_file_pattern(
 /// * `matches` - コマンドライン引数
 /// * `pattern` - パターン
 fn input_pipe_pattern(
-   matches: &ArgMatches,
-   pattern: &Regex,
+    matches: &ArgMatches,
+    pattern: &Regex,
 ) -> Result<(), Box<dyn std::error::Error>> {
-   // パイプ入力
-   let stdin = std::io::stdin();
-   let bufer = stdin.lock();
-   let lines_tmp =
-      bufer.lines().collect::<Result<Vec<String>, _>>()?;
+    // パイプ入力
+    let stdin = std::io::stdin();
+    let bufer = stdin.lock();
+    let lines_tmp = bufer.lines().collect::<Result<Vec<String>, _>>()?;
 
-   // パイプ入力でファイルをリードする場合
-   if matches.get_flag("read_file") {
-      for line in &lines_tmp {
-         // ファイルネームを出力
-         println!("\n\nfile name:{}", line);
-         let file = File::open(line);
-         match file {
-            Ok(file) => {
-               let reader = BufReader::new(file);
-               let lines_tmp =
-                  reader
-                     .lines()
-                     .collect::<Result<Vec<String>, _>>();
+    // パイプ入力でファイルをリードする場合
+    if matches.get_flag("read_file") {
+        for line in &lines_tmp {
+            // ファイルネームを出力
+            println!("\n\nfile name:{}", line);
+            let file = File::open(line);
+            match file {
+                Ok(file) => {
+                    let reader = BufReader::new(file);
+                    let lines_tmp = reader.lines().collect::<Result<Vec<String>, _>>();
 
-               match lines_tmp {
-                  Ok(lines_tmp) => {
-                     print_display(
-                        &matches, &pattern, &lines_tmp,
-                     );
-                  }
-                  Err(_e) => {}
-               }
+                    match lines_tmp {
+                        Ok(lines_tmp) => {
+                            print_display(&matches, &pattern, &lines_tmp);
+                        }
+                        Err(_e) => {}
+                    }
+                }
+                Err(_e) => {}
             }
-            Err(_e) => {}
-         }
-      }
-   } else {
-      print_display(&matches, &pattern, &lines_tmp);
-   }
+        }
+    } else {
+        print_display(&matches, &pattern, &lines_tmp);
+    }
 
-   Ok(())
+    Ok(())
 }
 
 /// 画面に出力する
