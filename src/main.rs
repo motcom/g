@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     branch_atty(&matches, &pattern)?;
     Ok(())
 }
-/// -------------------------------Utility--------------------------------
+/// -------------------------------Utility start --------------------------------
 /// ファイルパスを取得する
 /// common
 ///
@@ -25,8 +25,6 @@ fn get_file_path(matches: &ArgMatches) -> Option<&String> {
     let file_path = matches.get_one::<String>("file");
     file_path
 }
-
-/// -------------------------------Utility--------------------------------
 
 
 /// コマンドライン引数を取得する
@@ -64,6 +62,8 @@ fn get_command_matches() -> ArgMatches {
       )
       .get_matches()
 }
+
+/// -------------------------------Utility end--------------------------------
 
 /// パターンを取得する
 /// common
@@ -134,7 +134,7 @@ fn input_file_pattern(
                 Ok(file) => {
                     let reader = BufReader::new(file);
                     let lines_tmp = reader.lines().collect::<Result<Vec<String>, _>>()?;
-                    print_display(&matches, &pattern, &lines_tmp);
+                    print_display(&matches, &pattern, &lines_tmp,None);
                 }
                 Err(_e) => {}
             }
@@ -169,10 +169,9 @@ fn input_pipe_pattern(
                 Ok(file) => {
                     let reader = BufReader::new(file);
                     let lines_tmp = reader.lines().collect::<Result<Vec<String>, _>>();
-
                     match lines_tmp {
                         Ok(lines_tmp) => {
-                            print_display(&matches, &pattern, &lines_tmp);
+                            print_display(&matches, &pattern, &lines_tmp,Some(&line));
                         }
                         Err(_e) => {}
                     }
@@ -181,9 +180,9 @@ fn input_pipe_pattern(
             }
         }
     } else {
-        print_display(&matches, &pattern, &lines_tmp);
+    // moji wo sonomama syuturyokusurubaai 
+        print_display(&matches, &pattern, &lines_tmp,None);
     }
-
     Ok(())
 }
 
@@ -199,29 +198,43 @@ fn print_display(
    matches: &ArgMatches,
    pattern: &Regex,
    str_vec: &Vec<String>,
+   file_name:Option<&String>,
 ) {
+   // パイプ出力の場合 True
+   let atty_out_flag = atty::isnt(atty::Stream::Stdout);
+
    // number かどうか
    if matches.get_flag("number") {
       let mut index = 1;
       // ouput
       for str in str_vec {
          if pattern.is_match(str) {
-            let rep = if let Some(s) = pattern.find(str){s}else{continue};
-            let rep = rep.as_str();
-            let red_str = Colour::Red.paint(rep).to_string();
-            println!("{}: {}", index, &red_str);
+            if atty_out_flag{
+               println!("{}: {}", index, &str);
+            }else {
+               let rep = if let Some(s) = pattern.find(str){s}else{continue};
+               let rep = rep.as_str();
+               let red_str = Colour::Red.paint(rep).to_string();
+               println!("{}: {}", index, &red_str);
+            }
+
          }
          index += 1;
       }
-   
    } else {
       for str in str_vec {
         if pattern.is_match(str) {
-            let rep = if let Some(s) = pattern.find(str){s}else{continue};
-            let rep = rep.as_str();
-            let red_str = Colour::Red.paint(rep).to_string();
-            println!("{}", str.replace(rep,&red_str));
+            if atty_out_flag {
+               println!("{}",&str);
+            }else {
+               let rep = if let Some(s) = pattern.find(str){s}else{continue};
+               let rep = rep.as_str();
+               let red_str = Colour::Red.paint(rep).to_string();
+               println!("{}", str.replace(rep,&red_str));
+            }
          }
+
       }
    }
 }
+
